@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from typing import Tuple, Optional, List
+from tqdm import tqdm
 
 import torch
 import torch.nn as nn
@@ -8,8 +9,8 @@ import torchvision
 import torchvision.transforms as transforms
 from torchvision import datasets
 from torch.utils.data import DataLoader, TensorDataset, Dataset
+from torch.nn.utils import clip_grad_norm_
 from torch import Tensor
-from tqdm import tqdm
 
 from models import cifar
 
@@ -18,57 +19,71 @@ def load_model(dataset: str):
         return cifar.Net()
 
 def train(
-    net,
+    model,
     trainloader: torch.utils.data.DataLoader,
     device: torch.device,
     n_epochs: int,
+    opt_params
 ) -> List[Tuple[float, float]]:
 
     # Define loss and optimizer
-    net.train()
+    model.train()
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+    
+    #DP-SGD parameters
+    lr = opt_params['lr']
+    use_dp = opt_params['dp']
+    C = opt_params['C']
+    sigma = opt_params['sigma']
+    optimizer = torch.optim.SGD(model.parameters(), lr=lr)
 
     print(f"Training {n_epochs} epoch(s) w/ {len(trainloader)} batches each.", flush=True)
     results = []
     # Train the network
     for idx, epoch in enumerate(range(n_epochs)):
+        
         running_loss = 0.0
         running_acc  = 0.0
         total = 0
         pbar = tqdm(trainloader, 0)
 
-        for bx, data in enumerate(pbar):
+        for b_ix, sample in enumerate(pbar):
             pbar.set_description(f'Epoch {epoch}: Training...')
-            images, labels = data[0].to(device), data[1].to(device)
 
-            # zero the parameter gradients
-            optimizer.zero_grad()
+            image, label = sample[0].to(device), sample[1].to(device)
 
             # forward + backward + optimize
-            outputs = net(images)
-            loss = criterion(outputs, labels)
+            optimizer.zero_grad()
+            y_hat = model(image)
+            loss = criterion(y_hat, label)
             loss.backward()
-            optimizer.step()
 
-            # collect statistics
+            if use_dp: 
+                for param in model.parameters():     
+                    clip_grad_norm_(param.grad, max_norm=C)
+                    param = param - lr * param.grad
+                    param += torch.normal(mean=torch.zeros(param.shape), std=sigma * C)
+            else: 
+                optimizer.step()
+
+            # Collect statistics
             running_loss += loss.item()
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            running_acc += (predicted == labels).sum().item()
+            _, predicted = torch.max(y_hat.data, 1)
+            total += label.size(0)
+            running_acc += (predicted == label).sum().item()
 
         results.append((running_loss/total, running_acc/total))
 
     return results
 
 def test(
-    net,
+    model,
     testloader: torch.utils.data.DataLoader,
     device: torch.device,
 ) -> Tuple[float, float]:
     """Validate the network on the entire test set."""
 
-    net.eval()
+    model.eval()
     criterion = nn.CrossEntropyLoss()
     correct = 0.0
     total = 0
@@ -79,7 +94,7 @@ def test(
         for idx, data in enumerate(pbar):
             pbar.set_description(f'Testing...')
             images, labels = data[0].to(device), data[1].to(device)
-            outputs = net(images)
+            outputs = model(images)
             loss += criterion(outputs, labels).item()
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)

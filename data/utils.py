@@ -2,7 +2,7 @@ from typing import Tuple, Optional, List
 import torchvision
 import torchvision.transforms as transforms
 
-DATA_ROOT = "data/cifar-10"
+DATA_ROOT = "data/datasets/cifar-10"
 
 def load_data(dataset:str='cifar') -> Tuple[torchvision.datasets.CIFAR10, torchvision.datasets.CIFAR10]:
     """Load CIFAR-10 (training and test set)."""
