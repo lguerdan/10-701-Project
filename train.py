@@ -12,11 +12,13 @@ from torch.utils.data import DataLoader, TensorDataset, Dataset
 from torch.nn.utils import clip_grad_norm_
 from torch import Tensor
 
-from models import cifar
+from models import cifar, mnist
 
 def load_model(dataset: str):
     if dataset == 'cifar':
         return cifar.Net()
+    elif dataset == 'mnist':
+        return mnist.Net()
 
 def train(
     model,
