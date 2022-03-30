@@ -52,27 +52,27 @@ def train(
         for b_ix, sample in enumerate(pbar):
             pbar.set_description(f'Epoch {epoch}: Training...')
 
-            image, label = sample[0].to(device), sample[1].to(device)
+            images, label = sample[0].to(device), sample[1].to(device)
+            for image in images:
+                # forward + backward + optimize
+                optimizer.zero_grad()
+                y_hat = model(image)
+                loss = criterion(y_hat, label)
+                loss.backward()
 
-            # forward + backward + optimize
-            optimizer.zero_grad()
-            y_hat = model(image)
-            loss = criterion(y_hat, label)
-            loss.backward()
+                if use_dp:
+                    for param in model.parameters():
+                        clip_grad_norm_(param.grad, max_norm=C)
+                        param = param - lr * param.grad
+                        param += torch.normal(mean=torch.zeros(param.shape), std=sigma * C)
+                else:
+                    optimizer.step()
 
-            if use_dp: 
-                for param in model.parameters():     
-                    clip_grad_norm_(param.grad, max_norm=C)
-                    param = param - lr * param.grad
-                    param += torch.normal(mean=torch.zeros(param.shape), std=sigma * C)
-            else: 
-                optimizer.step()
-
-            # Collect statistics
-            running_loss += loss.item()
-            _, predicted = torch.max(y_hat.data, 1)
-            total += label.size(0)
-            running_acc += (predicted == label).sum().item()
+                # Collect statistics
+                running_loss += loss.item()
+                _, predicted = torch.max(y_hat.data, 1)
+                total += label.size(0)
+                running_acc += (predicted == label).sum().item()
 
         results.append((running_loss/total, running_acc/total))
 
