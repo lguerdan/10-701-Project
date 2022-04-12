@@ -113,15 +113,6 @@ def train_epoch(
     total = 0.0
     correct = 0.0
     for i, data in tqdm(enumerate(trainloader, 0)):
-        """
-        For the batch
-        The main difference is that to maintain differential privacy, 
-        we apply a fixed C to all gradient values (in a given batch),
-        and we store a bit b specifying whether the gradient X is less than C. 
-        Then, we add gaussian noise to each b and take the average to get the b_tilde value used in their update equation
-        With this approach, don’t store the gradient norms explicitly because it could violate privacy. 
-        However, we could store the norms and track the distribution to see how it changes over time and debug.
-        """
         # Indicator sum of gradient less than C for this batch
         b = 0.0
 
@@ -137,12 +128,6 @@ def train_epoch(
         for tensor_name, tensor in model.named_parameters():
             saved_var[tensor_name] = torch.zeros_like(tensor)
 
-        """To start with this task, 
-        it might be easiest to begin by storing the full gradient norm distribution and comparing the actual median to 
-        the median we estimate via their update equations.
-        Once this looks correct, we could use the estimated median to update the norm clipping threshold.
-        """
-        print(f"before clipping {S}")
         for sample in losses:
             sample.backward(retain_graph=True)
 
@@ -164,9 +149,10 @@ def train_epoch(
         if use_adaptive:
             # Linear clipping
             S = S - lr_c * (b_t - gamma)
+
             # Exponential clipping
             # S = S * torch.exp_(-lr_c * (b_t - gamma))
-        print(f"after update clipping threshold {S}")
+
         for tensor_name, tensor in model.named_parameters():
             if device.type == 'cuda':
                 noise = torch.cuda.FloatTensor(tensor.grad.shape).normal_(0, sigma)
