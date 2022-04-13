@@ -12,12 +12,15 @@ from torchvision import datasets
 from torch.utils.data import DataLoader, TensorDataset, Dataset
 from torch.nn.utils import clip_grad_norm_
 from torch import Tensor
+from continuum import ClassIncremental
+from continuum.tasks import split_train_val
 
 import helpers
 from models import cifar, mnist
 from data import utils
 
-DEVICE =  torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 def load_model(dataset: str):
     if dataset == 'cifar':
@@ -25,30 +28,43 @@ def load_model(dataset: str):
     elif dataset == 'mnist':
         return mnist.Net()
 
-def run_exp(exp_name, params, use_devset=False):
-    
-    for benchmark in ['mnist', 'cifar']:
-        print(f'Running: {exp_name}/{benchmark}')
-        trainset, testset = utils.load_data(dataset=benchmark, devset=use_devset)
-        trainloader = torch.utils.data.DataLoader(
-            dataset=trainset, batch_size=params['batch_size'], shuffle=True, drop_last=True)
-        
-        testloader  = torch.utils.data.DataLoader(
-            dataset=testset,  batch_size=params['batch_size'], shuffle=False, drop_last=True)
 
-        model = load_model(dataset=benchmark)
-        train(exp_name=f'{exp_name}/{benchmark}', model=model, trainloader=trainloader, testloader=testloader, device=DEVICE, opt_params=params)
+def run_exp(exp_name, params, use_devset=False):
+    for benchmark in ['mnist', 'cifar']:
+        trainset, testset = utils.load_data(dataset=benchmark, devset=use_devset)
+        for learning in ['central', 'single', 'multi']:
+            print(f'Running: {exp_name}/{benchmark}')
+            if learning == 'central':
+                trainloader = torch.utils.data.DataLoader(
+                    dataset=trainset, batch_size=params['batch_size'], shuffle=True, drop_last=True)
+
+                testloader = torch.utils.data.DataLoader(
+                    dataset=testset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
+                model = load_model(dataset=benchmark)
+                train(exp_name=f'{exp_name}/{benchmark}', model=model, trainloader=trainloader, testloader=testloader,
+                      device=DEVICE, opt_params=params)
+            else:
+                # Incremental Learning(Changing params will change how many classes at a time to learn
+                scenario = ClassIncremental(trainset, increment=(1 if learning == 'single' else params['increment']))
+                print(f"Number of classes: {scenario.nb_classes}.")
+                print(f"Number of tasks: {scenario.nb_tasks}.")
+                for task_id, train_taskset in enumerate(scenario):
+                    train_taskset, val_taskset = split_train_val(train_taskset, val_split=0)
+                    trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
+                                                              shuffle=True, drop_last=True)
+                    model = load_model(dataset=benchmark)
+                    train(exp_name=f'{exp_name}/{benchmark}', model=model, trainloader=trainloader,
+                          testloader=testloader, device=DEVICE, opt_params=params)
 
 
 def train(
-    exp_name: str,
-    model: nn.Module,
-    trainloader: torch.utils.data.DataLoader,
-    testloader: torch.utils.data.DataLoader,
-    device: torch.device,
-    opt_params
+        exp_name: str,
+        model: nn.Module,
+        trainloader: torch.utils.data.DataLoader,
+        testloader: torch.utils.data.DataLoader,
+        device: torch.device,
+        opt_params
 ):
-
     n_epochs = opt_params['n_epochs']
     lr = opt_params['lr']
     momentum = opt_params['momentum']
@@ -87,16 +103,16 @@ def train(
     helpers.write_logs(exp_name, log, opt_params)
     writer.close()
 
-def train_epoch(
-    model,
-    trainloader: torch.utils.data.DataLoader,
-    device: torch.device,
-    optimizer: torch.optim,
-    criterion,
-    opt_params
-) -> List[Tuple[float, float]]:
 
-    #DP-SGD parameters
+def train_epoch(
+        model,
+        trainloader: torch.utils.data.DataLoader,
+        device: torch.device,
+        optimizer: torch.optim,
+        criterion,
+        opt_params
+) -> List[Tuple[float, float]]:
+    # DP-SGD parameters
     lr = opt_params['lr']
     use_dp = opt_params['dp']
     num_microbatches = opt_params['num_microbatches']
@@ -110,7 +126,7 @@ def train_epoch(
     total = 0.0
     correct = 0.0
     for i, data in tqdm(enumerate(trainloader, 0)):
-        
+
         x, y = data[0].to(device), data[1].to(device)
         optimizer.zero_grad()
 
@@ -118,7 +134,7 @@ def train_epoch(
         loss = criterion(y_hat, y)
         running_loss += torch.mean(loss).item()
         losses = torch.mean(loss.reshape(num_microbatches, -1), dim=1)
-        
+
         saved_var = dict()
         for tensor_name, tensor in model.named_parameters():
             saved_var[tensor_name] = torch.zeros_like(tensor)
@@ -132,7 +148,7 @@ def train_epoch(
             model.zero_grad()
 
         for tensor_name, tensor in model.named_parameters():
-            if device.type =='cuda':
+            if device.type == 'cuda':
                 noise = torch.cuda.FloatTensor(tensor.grad.shape).normal_(0, sigma)
             else:
                 noise = torch.FloatTensor(tensor.grad.shape).normal_(0, sigma)
@@ -144,13 +160,13 @@ def train_epoch(
         _, predicted = torch.max(y_hat.data, 1)
         total += y.size(0)
         correct += (predicted == y).sum().item()
-    return running_loss/total, correct/total
+    return running_loss / total, correct / total
 
 
 def test(
-    model,
-    testloader: torch.utils.data.DataLoader,
-    device: torch.device
+        model,
+        testloader: torch.utils.data.DataLoader,
+        device: torch.device
 ) -> Tuple[float, float]:
     """Validate the network on the entire test set."""
 
@@ -171,4 +187,4 @@ def test(
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
 
-    return loss/total, correct/total
+    return loss / total, correct / total
