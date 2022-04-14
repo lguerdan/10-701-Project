@@ -22,9 +22,9 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def load_model(dataset: str):
     if dataset == 'cifar':
-        return cifar.Net()
+        return cifar.Net().to(DEVICE)
     elif dataset == 'mnist':
-        return mnist.Net()
+        return mnist.Net().to(DEVICE)
 
 
 def run_exp(exp_name, params, use_devset=False):
@@ -141,7 +141,7 @@ def train_epoch(
             torch.nn.utils.clip_grad_norm_(model.parameters(), S)
 
             for tensor_name, tensor in model.named_parameters():
-                new_grad = tensor.grad
+                new_grad = tensor.grad.to(DEVICE)
                 saved_var[tensor_name].add_(new_grad)
             model.zero_grad()
 
