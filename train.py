@@ -54,6 +54,7 @@ def train(
     lr = opt_params['lr']
     momentum = opt_params['momentum']
     decay = opt_params['decay']
+    S_e = opt_params['S']
 
     criterion = nn.CrossEntropyLoss(reduction='none')
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=decay)
@@ -63,17 +64,19 @@ def train(
         'train_loss': [],
         'train_acc': [],
         'test_loss': [],
-        'test_acc': []
+        'test_acc': [],
+        'S': []
     }
 
     print(f"Training {n_epochs} epoch(s) w/ {len(trainloader)} batches each.", flush=True)
     for epoch in range(n_epochs):
-        train_loss, train_acc = train_epoch(model, trainloader, device, optimizer, criterion, opt_params)
+        train_loss, train_acc, S_e = train_epoch(model, trainloader, device, optimizer, criterion, S_e, opt_params)
         test_loss, test_acc = test(model, testloader, device)
 
         # Write training metrics
         writer.add_scalar(tag='Train loss', scalar_value=train_loss, global_step=epoch)
         writer.add_scalar(tag='Train accuracy', scalar_value=train_acc, global_step=epoch)
+        writer.add_scalar(tag='S', scalar_value=S_e, global_step=epoch)
 
         # Write testing metrics
         writer.add_scalar(tag='Test loss', scalar_value=test_loss, global_step=epoch)
@@ -83,6 +86,7 @@ def train(
         log['train_acc'].append(train_acc)
         log['test_loss'].append(test_loss)
         log['test_acc'].append(test_acc)
+        log['S'].append(S_e)
 
     # export scalar data to JSON for external processing
     helpers.write_logs(exp_name, log, opt_params)
@@ -95,12 +99,13 @@ def train_epoch(
         device: torch.device,
         optimizer: torch.optim,
         criterion,
-        opt_params
+        S_e,
+        opt_params,
 ) -> List[Tuple[float, float]]:
     # DP-SGD parameters
-    use_adaptive = opt_params['adaptive']
+    adaptive_clipping = opt_params['clipping']
     num_microbatches = opt_params['num_microbatches']
-    S = opt_params['S']
+    S = S_e
     z = opt_params['z']
     gamma = opt_params['gamma']  # Target quantile
     lr_c = opt_params['lr_c']
@@ -146,12 +151,11 @@ def train_epoch(
             model.zero_grad()
 
         b_t = b / num_microbatches
-        if use_adaptive:
-            # Linear clipping
-            S = S - lr_c * (b_t - gamma)
-
-            # Exponential clipping
-            # S = S * torch.exp_(-lr_c * (b_t - gamma))
+        if adaptive_clipping == 'Linear':
+            S_e = S_e - lr_c * (b_t - gamma)
+        
+        elif adaptive_clipping == 'Exponential':
+            S_e = S_e * torch.exp_(-lr_c * (b_t - gamma))
 
         for tensor_name, tensor in model.named_parameters():
             if device.type == 'cuda':
@@ -166,7 +170,9 @@ def train_epoch(
         _, predicted = torch.max(y_hat.data, 1)
         total += y.size(0)
         correct += (predicted == y).sum().item()
-    return running_loss / total, correct / total
+        S_e = S_e.item() if adaptive_clipping != 'Fixed' else S_e
+
+    return running_loss / total, correct / total, S_e
 
 
 def test(
