@@ -136,25 +136,22 @@ def train_epoch(
         for sample in losses:
             sample.backward(retain_graph=True)
 
-            total_norm = 0.0
-            for p in model.parameters():
-                param_norm = p.grad.detach().data.norm(2)
-                total_norm += param_norm.item() ** 2
+            total_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), S_e)
             b += 1 if total_norm ** 0.5 < S_e else 0
-            b += torch.randn(1) * sigma_b
-
-            torch.nn.utils.clip_grad_norm_(model.parameters(), S_e)
 
             for tensor_name, tensor in model.named_parameters():
                 new_grad = tensor.grad.to(DEVICE)
                 saved_var[tensor_name].add_(new_grad)
             model.zero_grad()
 
-        b_t = b / num_microbatches
         if adaptive_clipping == 'Linear':
+            b += torch.randn(1) * sigma_b
+            b_t = b / num_microbatches
             S_e = S_e - lr_c * (b_t - gamma)
         
         elif adaptive_clipping == 'Exponential':
+            b += torch.randn(1) * sigma_b
+            b_t = b / num_microbatches
             S_e = S_e * torch.exp_(-lr_c * (b_t - gamma))
 
         for tensor_name, tensor in model.named_parameters():
