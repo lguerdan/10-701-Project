@@ -140,10 +140,10 @@ def train_epoch(
             for p in model.parameters():
                 param_norm = p.grad.detach().data.norm(2)
                 total_norm += param_norm.item() ** 2
-            b += 1 if total_norm ** 0.5 < S else 0
+            b += 1 if total_norm ** 0.5 < S_e else 0
             b += torch.randn(1) * sigma_b
 
-            torch.nn.utils.clip_grad_norm_(model.parameters(), S)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), S_e)
 
             for tensor_name, tensor in model.named_parameters():
                 new_grad = tensor.grad.to(DEVICE)
