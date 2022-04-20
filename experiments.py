@@ -38,34 +38,34 @@ if __name__ == "__main__":
         'num_microbatches': 32,
         'batch_size': 32,
         'S': 1,
-        'z': 1.1,
+        'z': 0.2,
         'gamma': 0.5,
         'lr_c': 0.2,
         'momentum': 0.5,
         'decay': 0,
-        'n_epochs' : 20,
+        'n_epochs' : 60,
     }
 
-    cutoffs = [.9, 1 , 1.1]
+    cutoffs = [.5, 1 , 1.5]
 
     # Experiment 2 configuration
     exp2_params = {
-        'use_devset': True,
+        'use_devset': False,
         'lr': 0.05,
         'dp': True,
         'clipping': 'Linear',
         'num_microbatches': 32,
         'batch_size': 32,
         'S': 1,
-        'z': 1.1,
+        'z': 0.2,
         'gamma': 0.5,
         'lr_c': 0.2,
         'momentum': 0.5,
         'decay': 0,
-        'n_epochs' : 20,
+        'n_epochs' : 60,
     }
     clipping_methods = ['Fixed', 'Linear', 'Exponential']
 
-   # run_central_baseline_fixed_cuttoff(exp1_params, cutoffs)
+   #run_central_baseline_fixed_cuttoff(exp1_params, cutoffs)
     run_central_baseline_adaptive_cuttoff(exp2_params, clipping_methods)
 
