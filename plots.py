@@ -24,6 +24,11 @@ def plot_centralized_fixed_cuttoff_experiment(exp):
     axes[1].set_xlabel('Epoch', fontsize=14)
     axes[1].set_ylabel('', fontsize=14)
     axes[1].tick_params(labelsize=14)
+
+    handles, labels = axes[1].gca().get_legend_handles_labels()
+    order = [3,0,1,2]
+    axes[1].legend([handles[idx] for idx in order],[labels[idx] for idx in order])
+
     plt.savefig(f'{FIGDIR}exp1_centralized.png', dpi=400)
 
 if __name__ == "__main__":
