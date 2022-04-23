@@ -3,10 +3,34 @@ import helpers
 import copy
 
 
+def run_fixed_continual_single_incremental(params, cutoffs):
+    for S in cutoffs:
+        exp_name = f'continual_single_incremental__S_{S}'
+
+        print('\n##########################')
+        print(f'Running setting: {exp_name}')
+        print('#########################\n')
+        exp_params = copy.copy(params)
+        exp_params['S'] = S
+        run_continual_exp(exp_name, exp_params, use_devset=exp_params['use_devset'])
+
+
+def run_fixed_instance_incremental(params, cutoffs):
+    for S in cutoffs:
+        exp_name = f'continual_single_incremental__S_{S}'
+
+        print('\n##########################')
+        print(f'Running setting: {exp_name}')
+        print('#########################\n')
+        exp_params = copy.copy(params)
+        exp_params['S'] = S
+        run_instance_exp(exp_name, exp_params, use_devset=exp_params['use_devset'])
+
+
 def run_central_baseline_fixed_cuttoff(params, cutoffs):
     for S in cutoffs:
         exp_name = f'central_baseline_fixed_cutoff__S_{S}'
-        
+
         print('\n############################')
         print(f'Running setting: {exp_name}')
         print('############################\n')
@@ -16,10 +40,9 @@ def run_central_baseline_fixed_cuttoff(params, cutoffs):
 
 
 def run_central_baseline_adaptive_cuttoff(params, clipping_methods):
-    
     for method in clipping_methods:
         exp_name = f'central_baseline_adaptive_cuttoff__C_{method}'
-        
+
         print('\n############################')
         print(f'Running setting: {exp_name}')
         print('############################\n')
@@ -27,8 +50,8 @@ def run_central_baseline_adaptive_cuttoff(params, clipping_methods):
         exp_params['clipping'] = method
         run_exp(exp_name, exp_params, use_devset=exp_params['use_devset'])
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     # Experiment 1 configuration
     exp1_params = {
         'use_devset': True,
@@ -43,10 +66,10 @@ if __name__ == "__main__":
         'lr_c': 0.2,
         'momentum': 0.5,
         'decay': 0,
-        'n_epochs' : 20,
+        'n_epochs': 20,
     }
 
-    cutoffs = [.9, 1 , 1.1]
+    cutoffs = [.9, 1, 1.1]
 
     # Experiment 2 configuration
     exp2_params = {
@@ -62,10 +85,9 @@ if __name__ == "__main__":
         'lr_c': 0.2,
         'momentum': 0.5,
         'decay': 0,
-        'n_epochs' : 20,
+        'n_epochs': 20,
     }
     clipping_methods = ['Fixed', 'Linear', 'Exponential']
 
-   # run_central_baseline_fixed_cuttoff(exp1_params, cutoffs)
+    # run_central_baseline_fixed_cuttoff(exp1_params, cutoffs)
     run_central_baseline_adaptive_cuttoff(exp2_params, clipping_methods)
-

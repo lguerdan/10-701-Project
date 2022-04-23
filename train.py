@@ -17,6 +17,10 @@ import helpers
 from models import cifar, mnist
 from data import utils
 
+from continuum import ClassIncremental
+from continuum import InstanceIncremental
+from continuum.tasks import split_train_val
+
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -27,10 +31,47 @@ def load_model(dataset: str):
         return mnist.Net().to(DEVICE)
 
 
+def run_instance_exp(exp_name, params, use_devset=False):
+    for benchmark in ['mnist', 'cifar']:
+        print(f'Running: {exp_name}/{benchmark}')
+        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset)
+        scenario = InstanceIncremental(dataset=trainset, transformations=transform, nb_tasks=10)
+        print(f"Number of tasks: {scenario.nb_tasks}")
+        for task_id, train_taskset in enumerate(scenario):
+            train_taskset, val_taskset = split_train_val(train_taskset, val_split=0)
+            trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
+                                                      shuffle=True, drop_last=True)
+            testloader = torch.utils.data.DataLoader(
+                dataset=testset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
+            model = load_model(dataset='mnist')
+            train(exp_name=exp_name, model=model, trainloader=trainloader, testloader=testloader,
+                  device=DEVICE, opt_params=params)
+
+
+def run_continual_exp(exp_name, params, use_devset=False):
+    for benchmark in ['mnist', 'cifar']:
+        print(f'Running: {exp_name}/{benchmark}')
+
+        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset)
+
+        scenario = ClassIncremental(trainset, transformations=transform, increment=1)
+        print(f"Number of classes: {scenario.nb_classes}.")
+        print(f"Number of tasks: {scenario.nb_tasks}.")
+        for task_id, train_taskset in enumerate(scenario):
+            train_taskset, val_taskset = split_train_val(train_taskset, val_split=0)
+            trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
+                                                      shuffle=True, drop_last=True)
+            testloader = torch.utils.data.DataLoader(
+                dataset=testset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
+            model = load_model(dataset='mnist')
+            train(exp_name=exp_name, model=model, trainloader=trainloader, testloader=testloader,
+                  device=DEVICE, opt_params=params)
+
+
 def run_exp(exp_name, params, use_devset=False):
     for benchmark in ['mnist', 'cifar']:
         print(f'Running: {exp_name}/{benchmark}')
-        trainset, testset = utils.load_data(dataset=benchmark, devset=use_devset)
+        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset)
         trainloader = torch.utils.data.DataLoader(
             dataset=trainset, batch_size=params['batch_size'], shuffle=True, drop_last=True)
 
@@ -109,7 +150,7 @@ def train_epoch(
     z = opt_params['z']
     gamma = opt_params['gamma']  # Target quantile
     lr_c = opt_params['lr_c']
-    sigma_b = 1.1 # Test value for sigma used in adaptive clipping
+    sigma_b = 1.1  # Test value for sigma used in adaptive clipping
     sigma = z * S
 
     # Define loss and optimizer
@@ -148,7 +189,7 @@ def train_epoch(
             b += torch.randn(1) * sigma_b
             b_t = b / num_microbatches
             S_e = S_e - lr_c * (b_t - gamma)
-        
+
         elif adaptive_clipping == 'Exponential':
             b += torch.randn(1) * sigma_b
             b_t = b / num_microbatches
