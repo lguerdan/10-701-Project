@@ -41,7 +41,7 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
 
     for benchmark in ['mnist', 'cifar']:
         print(f'Running: {exp_name}/{benchmark}')
-        # trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset, continual=True)
+
 
         if benchmark == 'mnist':
             trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
