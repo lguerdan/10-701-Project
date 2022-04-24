@@ -34,6 +34,11 @@ def load_model(dataset: str):
 
 
 def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
+    transform = [transforms.Compose(
+            [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+        )]
+
+
     for benchmark in ['mnist', 'cifar']:
         print(f'Running: {exp_name}/{benchmark}')
         # trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset, continual=True)
@@ -46,11 +51,11 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
             testset = CIFAR10(data_path='data/datasets/cifar10', trian=False, download=True)
 
         if cl_scenario == 'Class':
-            scenario = ClassIncremental(trainset, increment=1)
+            scenario = ClassIncremental(trainset, transformations=transform, increment=1)
             print(f"Number of classes: {scenario.nb_classes}.")
             print(f"Number of tasks: {scenario.nb_tasks}.")
         else:
-            scenario = InstanceIncremental(dataset=trainset, nb_tasks=10)
+            scenario = InstanceIncremental(dataset=trainset, transformations=transform, nb_tasks=10)
             print(f"Number of tasks: {scenario.nb_tasks}")
 
         model = load_model(dataset=benchmark)
