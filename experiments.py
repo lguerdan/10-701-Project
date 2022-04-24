@@ -79,7 +79,7 @@ def run_central_baseline_adaptive_cuttoff(params, clipping_methods):
 if __name__ == "__main__":
     # Experiment 1 configuration
     exp1_params = {
-        'use_devset': False,
+        'use_devset': True,
         'lr': 0.05,
         'dp': True,
         'clipping': 'Fixed',

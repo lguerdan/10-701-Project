@@ -20,6 +20,8 @@ from data import utils
 from continuum import ClassIncremental
 from continuum import InstanceIncremental
 from continuum.tasks import split_train_val
+from continuum.datasets import MNIST
+from continuum.datasets import CIFAR10
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -34,19 +36,32 @@ def load_model(dataset: str):
 def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
     for benchmark in ['mnist', 'cifar']:
         print(f'Running: {exp_name}/{benchmark}')
-        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset, continual=True)
+        # trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset, continual=True)
+
+        if benchmark == 'mnist':
+            trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
+            testset = MNIST(data_path='data/datasets/mnist', train=False, download=True)
+        else:
+            trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
+            testset = CIFAR10(data_path='data/datasets/cifar10', trian=False, download=True)
 
         if cl_scenario == 'Class':
-            scenario = ClassIncremental(trainset, transformations=transform, increment=1)
+            scenario = ClassIncremental(trainset, increment=1)
             print(f"Number of classes: {scenario.nb_classes}.")
             print(f"Number of tasks: {scenario.nb_tasks}.")
         else:
-            scenario = InstanceIncremental(dataset=trainset, transformations=transform, nb_tasks=10)
+            scenario = InstanceIncremental(dataset=trainset, nb_tasks=10)
             print(f"Number of tasks: {scenario.nb_tasks}")
 
         model = load_model(dataset=benchmark)
+        select_ix = list(range(0, 30))
+
         for task_id, train_taskset in enumerate(scenario):
             train_taskset, val_taskset = split_train_val(train_taskset, val_split=0)
+
+            if use_devset:
+                train_taskset = torch.utils.data.Subset(train_taskset, select_ix)
+
             trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
                                                       shuffle=True, drop_last=True)
             testloader = torch.utils.data.DataLoader(
@@ -59,7 +74,7 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
 def run_exp(exp_name, params, use_devset=False):
     for benchmark in ['mnist', 'cifar']:
         print(f'Running: {exp_name}/{benchmark}')
-        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset, continual=False)
+        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset)
         trainloader = torch.utils.data.DataLoader(
             dataset=trainset, batch_size=params['batch_size'], shuffle=True, drop_last=True)
 
