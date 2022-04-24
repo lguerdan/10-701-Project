@@ -34,21 +34,25 @@ def load_model(dataset: str):
 
 
 def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
-    transform = [transforms.Compose(
-            [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-        )]
-
 
     for benchmark in ['mnist', 'cifar']:
         print(f'Running: {exp_name}/{benchmark}')
 
-
         if benchmark == 'mnist':
             trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
             testset = MNIST(data_path='data/datasets/mnist', train=False, download=True)
+            transform = [transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.1307,), (0.3081,))
+            ])]
+
         else:
             trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
             testset = CIFAR10(data_path='data/datasets/cifar10', trian=False, download=True)
+
+            transform = [transforms.Compose(
+                [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+            )]
 
         if cl_scenario == 'Class':
             scenario = ClassIncremental(trainset, transformations=transform, increment=1)
@@ -59,16 +63,13 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
             print(f"Number of tasks: {scenario.nb_tasks}")
 
         model = load_model(dataset=benchmark)
-        select_ix = list(range(0, 30))
 
         for task_id, train_taskset in enumerate(scenario):
             train_taskset, val_taskset = split_train_val(train_taskset, val_split=0)
 
-            if use_devset:
-                train_taskset = torch.utils.data.Subset(train_taskset, select_ix)
-
             trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
                                                       shuffle=True, drop_last=True)
+
             testloader = torch.utils.data.DataLoader(
                 dataset=testset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
 
@@ -167,6 +168,9 @@ def train_epoch(
     total = 0.0
     correct = 0.0
     for i, data in tqdm(enumerate(trainloader, 0)):
+
+        if i > 30 and opt_params['use_devset'] == True:
+            break
         # Indicator sum of gradient less than C for this batch
         b = 0.0
 
