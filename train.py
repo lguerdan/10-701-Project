@@ -31,39 +31,27 @@ def load_model(dataset: str):
         return mnist.Net().to(DEVICE)
 
 
-def run_instance_exp(exp_name, params, use_devset=False):
+def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
     for benchmark in ['mnist', 'cifar']:
         print(f'Running: {exp_name}/{benchmark}')
-        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset)
-        scenario = InstanceIncremental(dataset=trainset, transformations=transform, nb_tasks=10)
-        print(f"Number of tasks: {scenario.nb_tasks}")
+        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset, continual=True)
+
+        if cl_scenario == 'Class':
+            scenario = ClassIncremental(trainset, transformations=transform, increment=1)
+            print(f"Number of classes: {scenario.nb_classes}.")
+            print(f"Number of tasks: {scenario.nb_tasks}.")
+        else:
+            scenario = InstanceIncremental(dataset=trainset, transformations=transform, nb_tasks=10)
+            print(f"Number of tasks: {scenario.nb_tasks}")
+
+        model = load_model(dataset=benchmark)
         for task_id, train_taskset in enumerate(scenario):
             train_taskset, val_taskset = split_train_val(train_taskset, val_split=0)
             trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
                                                       shuffle=True, drop_last=True)
             testloader = torch.utils.data.DataLoader(
                 dataset=testset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
-            model = load_model(dataset='mnist')
-            train(exp_name=exp_name, model=model, trainloader=trainloader, testloader=testloader,
-                  device=DEVICE, opt_params=params)
 
-
-def run_continual_exp(exp_name, params, use_devset=False):
-    for benchmark in ['mnist', 'cifar']:
-        print(f'Running: {exp_name}/{benchmark}')
-
-        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset)
-
-        scenario = ClassIncremental(trainset, transformations=transform, increment=1)
-        print(f"Number of classes: {scenario.nb_classes}.")
-        print(f"Number of tasks: {scenario.nb_tasks}.")
-        for task_id, train_taskset in enumerate(scenario):
-            train_taskset, val_taskset = split_train_val(train_taskset, val_split=0)
-            trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
-                                                      shuffle=True, drop_last=True)
-            testloader = torch.utils.data.DataLoader(
-                dataset=testset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
-            model = load_model(dataset='mnist')
             train(exp_name=exp_name, model=model, trainloader=trainloader, testloader=testloader,
                   device=DEVICE, opt_params=params)
 
@@ -71,7 +59,7 @@ def run_continual_exp(exp_name, params, use_devset=False):
 def run_exp(exp_name, params, use_devset=False):
     for benchmark in ['mnist', 'cifar']:
         print(f'Running: {exp_name}/{benchmark}')
-        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset)
+        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset, continual=False)
         trainloader = torch.utils.data.DataLoader(
             dataset=trainset, batch_size=params['batch_size'], shuffle=True, drop_last=True)
 

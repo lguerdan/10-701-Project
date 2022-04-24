@@ -3,28 +3,53 @@ import helpers
 import copy
 
 
-def run_fixed_continual_single_incremental(params, cutoffs):
+def run_adaptive_SCI(params, clipping_methods):
+    for method in clipping_methods:
+        exp_name = f'SCI_adaptive_cuttoff__C_{method}'
+
+        print('\n############################')
+        print(f'Running setting: {exp_name}')
+        print('############################\n')
+        exp_params = copy.copy(params)
+        exp_params['clipping'] = method
+        run_continual_exp(exp_name, exp_params, use_devset=exp_params['use_devset'], cl_scenario='Class')
+
+
+def run_adaptive_II(params,clipping_methods):
+    for method in clipping_methods:
+        exp_name = f'II_adaptive_cuttoff__C_{method}'
+
+        print('\n############################')
+        print(f'Running setting: {exp_name}')
+        print('############################\n')
+        exp_params = copy.copy(params)
+        exp_params['clipping'] = method
+        run_exp(exp_name, exp_params, use_devset=exp_params['use_devset'], cl_scenario='Instance')
+
+
+
+def run_fixed_SCI(params, cutoffs):
     for S in cutoffs:
-        exp_name = f'continual_single_incremental__S_{S}'
+        exp_name = f'SCI_fixed__S_{S}'
 
         print('\n##########################')
         print(f'Running setting: {exp_name}')
         print('#########################\n')
         exp_params = copy.copy(params)
         exp_params['S'] = S
-        run_continual_exp(exp_name, exp_params, use_devset=exp_params['use_devset'])
+        run_continual_exp(exp_name, exp_params, use_devset=exp_params['use_devset'], cl_scenario='Class')
 
 
-def run_fixed_instance_incremental(params, cutoffs):
+def run_fixed_II(params, cutoffs):
     for S in cutoffs:
-        exp_name = f'continual_single_incremental__S_{S}'
+        exp_name = f'II_fixed__S_{S}'
 
         print('\n##########################')
         print(f'Running setting: {exp_name}')
         print('#########################\n')
         exp_params = copy.copy(params)
         exp_params['S'] = S
-        run_instance_exp(exp_name, exp_params, use_devset=exp_params['use_devset'])
+        run_continual_exp(exp_name, exp_params, use_devset=exp_params['use_devset'], cl_scenario='Instance')
 
 
 def run_central_baseline_fixed_cuttoff(params, cutoffs):
@@ -54,7 +79,7 @@ def run_central_baseline_adaptive_cuttoff(params, clipping_methods):
 if __name__ == "__main__":
     # Experiment 1 configuration
     exp1_params = {
-        'use_devset': True,
+        'use_devset': False,
         'lr': 0.05,
         'dp': True,
         'clipping': 'Fixed',
@@ -90,4 +115,5 @@ if __name__ == "__main__":
     clipping_methods = ['Fixed', 'Linear', 'Exponential']
 
     # run_central_baseline_fixed_cuttoff(exp1_params, cutoffs)
-    run_central_baseline_adaptive_cuttoff(exp2_params, clipping_methods)
+    # run_central_baseline_adaptive_cuttoff(exp2_params, clipping_methods)
+    run_fixed_SCI(exp1_params, cutoffs)
