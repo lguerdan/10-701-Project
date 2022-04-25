@@ -46,25 +46,14 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
                 transforms.Normalize((0.1307,), (0.3081,))
             ])
             trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
-            #testset = MNIST(data_path='data/datasets/mnist', train=False, download=True)
             testset = torchvision.datasets.MNIST(DATA_ROOT_MNIST, train=False, download=True, transform=transform)
-            # if use_devset:
-            #     select_ix = list(range(0, 320))
-            #     testset = torch.utils.data.Subset(testset, select_ix)
-
 
         else:
             transform = transforms.Compose(
                 [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
             )
             trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
-            #testset = CIFAR10(data_path='data/datasets/cifar10', trian=False, download=True)
             testset = torchvision.datasets.CIFAR10(DATA_ROOT_CIFAR, train=False, download=True, transform=transform)
-            # if use_devset:
-            #     select_ix = list(range(0, 320))
-            #     testset = torch.utils.data.Subset(testset, select_ix)
-
-
 
         if cl_scenario == 'Class':
             scenario = ClassIncremental(trainset, transformations=[transform], increment=1)
