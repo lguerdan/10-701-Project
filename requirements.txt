@@ -65,3 +65,5 @@ urllib3==1.26.9
 wcwidth==0.2.5
 Werkzeug==2.1.1
 zipp==3.7.0
+
+continuum~=1.2.1

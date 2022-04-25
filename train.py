@@ -17,8 +17,16 @@ import helpers
 from models import cifar, mnist
 from data import utils
 
+from continuum import ClassIncremental
+from continuum import InstanceIncremental
+from continuum.tasks import split_train_val
+from continuum.datasets import MNIST
+from continuum.datasets import CIFAR10
+
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+DATA_ROOT_CIFAR = "data/datasets/cifar-10"
+DATA_ROOT_MNIST = "data/datasets/mnist"
 
 def load_model(dataset: str):
     if dataset == 'cifar':
@@ -27,10 +35,53 @@ def load_model(dataset: str):
         return mnist.Net().to(DEVICE)
 
 
+def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
+
+    for benchmark in ['mnist', 'cifar']:
+        print(f'Running: {exp_name}/{benchmark}')
+
+        if benchmark == 'mnist':
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.1307,), (0.3081,))
+            ])
+            trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
+            testset = torchvision.datasets.MNIST(DATA_ROOT_MNIST, train=False, download=True, transform=transform)
+
+        else:
+            transform = transforms.Compose(
+                [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+            )
+            trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
+            testset = torchvision.datasets.CIFAR10(DATA_ROOT_CIFAR, train=False, download=True, transform=transform)
+
+        if cl_scenario == 'Class':
+            scenario = ClassIncremental(trainset, transformations=[transform], increment=1)
+            print(f"Number of classes: {scenario.nb_classes}.")
+            print(f"Number of tasks: {scenario.nb_tasks}.")
+        else:
+            scenario = InstanceIncremental(dataset=trainset, transformations=[transform], nb_tasks=10)
+            print(f"Number of tasks: {scenario.nb_tasks}")
+
+        model = load_model(dataset=benchmark)
+
+        for task_id, train_taskset in enumerate(scenario):
+            train_taskset, val_taskset = split_train_val(train_taskset, val_split=0)
+
+            trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
+                                                      shuffle=True, drop_last=True)
+
+            testloader = torch.utils.data.DataLoader(
+                dataset=testset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
+
+            train(exp_name=exp_name, model=model, trainloader=trainloader, testloader=testloader,
+                  device=DEVICE, opt_params=params)
+
+
 def run_exp(exp_name, params, use_devset=False):
     for benchmark in ['mnist', 'cifar']:
         print(f'Running: {exp_name}/{benchmark}')
-        trainset, testset = utils.load_data(dataset=benchmark, devset=use_devset)
+        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset)
         trainloader = torch.utils.data.DataLoader(
             dataset=trainset, batch_size=params['batch_size'], shuffle=True, drop_last=True)
 
@@ -109,7 +160,7 @@ def train_epoch(
     z = opt_params['z']
     gamma = opt_params['gamma']  # Target quantile
     lr_c = opt_params['lr_c']
-    sigma_b = 1.1 # Test value for sigma used in adaptive clipping
+    sigma_b = 1.1  # Test value for sigma used in adaptive clipping
     sigma = z * S
 
     # Define loss and optimizer
@@ -118,6 +169,9 @@ def train_epoch(
     total = 0.0
     correct = 0.0
     for i, data in tqdm(enumerate(trainloader, 0)):
+
+        if i > 15 and opt_params['use_devset'] == True:
+            break
         # Indicator sum of gradient less than C for this batch
         b = 0.0
 
@@ -148,7 +202,7 @@ def train_epoch(
             b += torch.randn(1) * sigma_b
             b_t = b / num_microbatches
             S_e = S_e - lr_c * (b_t - gamma)
-        
+
         elif adaptive_clipping == 'Exponential':
             b += torch.randn(1) * sigma_b
             b_t = b / num_microbatches
