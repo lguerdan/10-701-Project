@@ -25,6 +25,8 @@ from continuum.datasets import CIFAR10
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+DATA_ROOT_CIFAR = "data/datasets/cifar-10"
+DATA_ROOT_MNIST = "data/datasets/mnist"
 
 def load_model(dataset: str):
     if dataset == 'cifar':
@@ -39,27 +41,37 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
         print(f'Running: {exp_name}/{benchmark}')
 
         if benchmark == 'mnist':
-            trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
-            testset = MNIST(data_path='data/datasets/mnist', train=False, download=True)
-            transform = [transforms.Compose([
+            transform = transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Normalize((0.1307,), (0.3081,))
-            ])]
+            ])
+            trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
+            #testset = MNIST(data_path='data/datasets/mnist', train=False, download=True)
+            testset = torchvision.datasets.MNIST(DATA_ROOT_MNIST, train=False, download=True, transform=transform)
+            # if use_devset:
+            #     select_ix = list(range(0, 320))
+            #     testset = torch.utils.data.Subset(testset, select_ix)
+
 
         else:
-            trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
-            testset = CIFAR10(data_path='data/datasets/cifar10', trian=False, download=True)
-
-            transform = [transforms.Compose(
+            transform = transforms.Compose(
                 [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-            )]
+            )
+            trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
+            #testset = CIFAR10(data_path='data/datasets/cifar10', trian=False, download=True)
+            testset = torchvision.datasets.CIFAR10(DATA_ROOT_CIFAR, train=False, download=True, transform=transform)
+            # if use_devset:
+            #     select_ix = list(range(0, 320))
+            #     testset = torch.utils.data.Subset(testset, select_ix)
+
+
 
         if cl_scenario == 'Class':
-            scenario = ClassIncremental(trainset, transformations=transform, increment=1)
+            scenario = ClassIncremental(trainset, transformations=[transform], increment=1)
             print(f"Number of classes: {scenario.nb_classes}.")
             print(f"Number of tasks: {scenario.nb_tasks}.")
         else:
-            scenario = InstanceIncremental(dataset=trainset, transformations=transform, nb_tasks=10)
+            scenario = InstanceIncremental(dataset=trainset, transformations=[transform], nb_tasks=10)
             print(f"Number of tasks: {scenario.nb_tasks}")
 
         model = load_model(dataset=benchmark)
@@ -169,7 +181,7 @@ def train_epoch(
     correct = 0.0
     for i, data in tqdm(enumerate(trainloader, 0)):
 
-        if i > 30 and opt_params['use_devset'] == True:
+        if i > 15 and opt_params['use_devset'] == True:
             break
         # Indicator sum of gradient less than C for this batch
         b = 0.0
