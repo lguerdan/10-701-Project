@@ -48,7 +48,7 @@ if __name__ == "__main__":
         'num_microbatches': 32,
         'batch_size': 32,
         'S': 1,
-        'z': 1.1,
+        'z': 0.2,
         'gamma': 0.5,
         'lr_c': 0.2,
         'momentum': 0.5,
