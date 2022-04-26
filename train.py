@@ -160,7 +160,7 @@ def train_epoch(
     z = opt_params['z']
     gamma = opt_params['gamma']  # Target quantile
     lr_c = opt_params['lr_c']
-    sigma_b = 1.1  # Test value for sigma used in adaptive clipping
+    sigma_b = 1.5  # Test value for sigma used in adaptive clipping
     sigma = z * S
 
     # Define loss and optimizer
@@ -222,6 +222,7 @@ def train_epoch(
         total += y.size(0)
         correct += (predicted == y).sum().item()
         S_e = S_e.item() if adaptive_clipping != 'Fixed' else S_e
+        S_e = max(S_e, 0.0)
 
     return running_loss / total, correct / total, S_e
 
