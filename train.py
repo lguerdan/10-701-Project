@@ -160,7 +160,7 @@ def train_epoch(
     z = opt_params['z']
     gamma = opt_params['gamma']  # Target quantile
     lr_c = opt_params['lr_c']
-    sigma_b = 1.1  # Test value for sigma used in adaptive clipping
+    sigma_b = 1.5  # Test value for sigma used in adaptive clipping
     sigma = z * S
 
     # Define loss and optimizer
