@@ -48,9 +48,9 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
             trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
             #testset = MNIST(data_path='data/datasets/mnist', train=False, download=True)
             testset = torchvision.datasets.MNIST(DATA_ROOT_MNIST, train=False, download=True, transform=transform)
-            # if use_devset:
-            #     select_ix = list(range(0, 320))
-            #     testset = torch.utils.data.Subset(testset, select_ix)
+            if use_devset:
+                select_ix = list(range(0, 320))
+                testset = torch.utils.data.Subset(testset, select_ix)
 
 
         else:
@@ -60,9 +60,9 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
             trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
             #testset = CIFAR10(data_path='data/datasets/cifar10', trian=False, download=True)
             testset = torchvision.datasets.CIFAR10(DATA_ROOT_CIFAR, train=False, download=True, transform=transform)
-            # if use_devset:
-            #     select_ix = list(range(0, 320))
-            #     testset = torch.utils.data.Subset(testset, select_ix)
+            if use_devset:
+                select_ix = list(range(0, 320))
+                testset = torch.utils.data.Subset(testset, select_ix)
 
 
 
@@ -181,7 +181,7 @@ def train_epoch(
     correct = 0.0
     for i, data in tqdm(enumerate(trainloader, 0)):
 
-        if i > 15 and opt_params['use_devset'] == True:
+        if i > 9 and opt_params['use_devset'] == True:
             break
         # Indicator sum of gradient less than C for this batch
         b = 0.0
