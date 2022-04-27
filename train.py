@@ -46,25 +46,14 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
                 transforms.Normalize((0.1307,), (0.3081,))
             ])
             trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
-            #testset = MNIST(data_path='data/datasets/mnist', train=False, download=True)
             testset = torchvision.datasets.MNIST(DATA_ROOT_MNIST, train=False, download=True, transform=transform)
-            if use_devset:
-                select_ix = list(range(0, 320))
-                testset = torch.utils.data.Subset(testset, select_ix)
-
 
         else:
             transform = transforms.Compose(
                 [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
             )
             trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
-            #testset = CIFAR10(data_path='data/datasets/cifar10', trian=False, download=True)
             testset = torchvision.datasets.CIFAR10(DATA_ROOT_CIFAR, train=False, download=True, transform=transform)
-            if use_devset:
-                select_ix = list(range(0, 320))
-                testset = torch.utils.data.Subset(testset, select_ix)
-
-
 
         if cl_scenario == 'Class':
             scenario = ClassIncremental(trainset, transformations=[transform], increment=1)
@@ -171,7 +160,7 @@ def train_epoch(
     z = opt_params['z']
     gamma = opt_params['gamma']  # Target quantile
     lr_c = opt_params['lr_c']
-    sigma_b = 1.1  # Test value for sigma used in adaptive clipping
+    sigma_b = 1.5  # Test value for sigma used in adaptive clipping
     sigma = z * S
 
     # Define loss and optimizer
@@ -181,7 +170,7 @@ def train_epoch(
     correct = 0.0
     for i, data in tqdm(enumerate(trainloader, 0)):
 
-        if i > 9 and opt_params['use_devset'] == True:
+        if i > 15 and opt_params['use_devset'] == True:
             break
         # Indicator sum of gradient less than C for this batch
         b = 0.0
@@ -233,6 +222,7 @@ def train_epoch(
         total += y.size(0)
         correct += (predicted == y).sum().item()
         S_e = S_e.item() if adaptive_clipping != 'Fixed' else S_e
+        S_e = max(S_e, 0.0)
 
     return running_loss / total, correct / total, S_e
 
