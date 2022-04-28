@@ -22,6 +22,7 @@ from continuum import InstanceIncremental
 from continuum.tasks import split_train_val
 from continuum.datasets import MNIST
 from continuum.datasets import CIFAR10
+from continuum.metrics import Logger
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -46,6 +47,7 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
                 transforms.Normalize((0.1307,), (0.3081,))
             ])
             trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
+            testcset = MNIST(data_path = 'data/datasets/mnist', train=False, download=False)
             testset = torchvision.datasets.MNIST(DATA_ROOT_MNIST, train=False, download=True, transform=transform)
 
         else:
@@ -53,29 +55,47 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
                 [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
             )
             trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
+            testcset = MNIST(data_path='data/datasets/cifar10', train=False, download=False)
             testset = torchvision.datasets.CIFAR10(DATA_ROOT_CIFAR, train=False, download=True, transform=transform)
 
         if cl_scenario == 'Class':
             scenario = ClassIncremental(trainset, transformations=[transform], increment=1)
+            test_scenario = ClassIncremental(testcset, transformations=[transform], increment=1)
             print(f"Number of classes: {scenario.nb_classes}.")
             print(f"Number of tasks: {scenario.nb_tasks}.")
         else:
             scenario = InstanceIncremental(dataset=trainset, transformations=[transform], nb_tasks=10)
+            test_scenario = InstanceIncremental(testcset, transformations=[transform], increment=1)
             print(f"Number of tasks: {scenario.nb_tasks}")
 
         model = load_model(dataset=benchmark)
+        logger = Logger(list_subsets=['test'])
+        log = {
+            'forward_transfer': [],
+            'backward_transfer': []
+        }
 
         for task_id, train_taskset in enumerate(scenario):
             train_taskset, val_taskset = split_train_val(train_taskset, val_split=0)
 
             trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
                                                       shuffle=True, drop_last=True)
+            test_taskset = test_scenario[:task_id + 1]
 
             testloader = torch.utils.data.DataLoader(
                 dataset=testset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
 
+            c_testloader = torch.utils.data.DataLoader(test_taskset, batch_size=params['batch_size'])
+
             train(exp_name=exp_name, model=model, trainloader=trainloader, testloader=testloader,
                   device=DEVICE, opt_params=params)
+
+            test_loss, test_acc = test(model=model,testloader=c_testloader,logger=logger)
+            log['forward_transfer'].append(logger.forward_transfer)
+            log['backward_transfer'].append(logger.backward_transfer)
+
+            logger.end_task()
+        helpers.write_logs(exp_name, log, params)
 
 
 def run_exp(exp_name, params, use_devset=False):
@@ -230,7 +250,8 @@ def train_epoch(
 def test(
         model,
         testloader: torch.utils.data.DataLoader,
-        device: torch.device
+        device: torch.device,
+        logger = None
 ) -> Tuple[float, float]:
     """Validate the network on the entire test set."""
 
@@ -250,5 +271,7 @@ def test(
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+            if logger is not None:
+                logger.add([predicted,labels,idx], subset='test')
 
     return loss / total, correct / total
