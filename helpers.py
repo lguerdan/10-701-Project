@@ -2,13 +2,14 @@ import json
 import pandas as pd
 import glob
 
-def write_logs(exp_name, log, params):
+def write_logs(exp_name, log, log_type, params=None):
     # Directly from dictionary
     df = pd.DataFrame.from_dict(log)
-    df.to_csv(f'runs/{exp_name}.csv', index=False)
+    df.to_csv(f'runs/{exp_name}_{logtype}.csv', index=False)
 
-    with open(f'runs/{exp_name}_params.json', "w") as outfile:
-        json.dump(params, outfile)
+    if params:
+        with open(f'runs/{exp_name}_params.json', "w") as outfile:
+            json.dump(params, outfile)
 
 def load_run(run_name):
     
