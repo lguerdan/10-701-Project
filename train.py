@@ -71,8 +71,8 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
         model = load_model(dataset=benchmark)
         logger = Logger(list_subsets=['test'])
         log = {
-            'forward_transfer': [],
-            'backward_transfer': []
+            'FWT': [],
+            'BWT': []
         }
 
         for task_id, train_taskset in enumerate(scenario):
@@ -90,12 +90,12 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
             train(exp_name=exp_name, model=model, trainloader=trainloader, testloader=testloader,
                   device=DEVICE, opt_params=params)
 
-            test_loss, test_acc = test(model=model,testloader=c_testloader,logger=logger)
-            log['forward_transfer'].append(logger.forward_transfer)
-            log['backward_transfer'].append(logger.backward_transfer)
+            test_loss, test_acc = test(model=model,testloader=c_testloader, device=DEVICE, logger=logger)
+            log['FWT'].append(logger.forward_transfer)
+            log['BWT'].append(logger.backward_transfer)
 
             logger.end_task()
-        helpers.write_logs(exp_name, log, params)
+        helpers.write_logs(exp_name, log, log_type='task', params=opt_params)
 
 
 def run_exp(exp_name, params, use_devset=False):
@@ -160,7 +160,7 @@ def train(
         log['S'].append(S_e)
 
     # export scalar data to JSON for external processing
-    helpers.write_logs(exp_name, log, opt_params)
+    helpers.write_logs(exp_name, log, log_type='epoch', params=opt_params)
     writer.close()
 
 
