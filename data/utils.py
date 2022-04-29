@@ -3,8 +3,6 @@ import torchvision
 import torchvision.transforms as transforms
 import torch
 
-from continuum.datasets import PyTorchDataset
-from continuum import TaskSet
 
 DATA_ROOT_CIFAR = "data/datasets/cifar-10"
 DATA_ROOT_MNIST = "data/datasets/mnist"

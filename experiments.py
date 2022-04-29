@@ -76,7 +76,7 @@ if __name__ == "__main__":
 
     # Experiment 3 configuration - vary threshold update type under continual learning scenarios
     exp3_params = {
-        'use_devset': True,
+        'use_devset': False,
         'lr': 0.05,
         'dp': True,
         'clipping': 'Linear',

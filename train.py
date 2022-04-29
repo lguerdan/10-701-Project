@@ -22,6 +22,7 @@ from continuum import InstanceIncremental
 from continuum.tasks import split_train_val
 from continuum.datasets import MNIST
 from continuum.datasets import CIFAR10
+from continuum.metrics import Logger
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -33,50 +34,6 @@ def load_model(dataset: str):
         return cifar.Net().to(DEVICE)
     elif dataset == 'mnist':
         return mnist.Net().to(DEVICE)
-
-
-def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
-
-    for benchmark in ['mnist', 'cifar']:
-        print(f'Running: {exp_name}/{benchmark}')
-
-        if benchmark == 'mnist':
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.1307,), (0.3081,))
-            ])
-            trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
-            testset = torchvision.datasets.MNIST(DATA_ROOT_MNIST, train=False, download=True, transform=transform)
-
-        else:
-            transform = transforms.Compose(
-                [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-            )
-            trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
-            testset = torchvision.datasets.CIFAR10(DATA_ROOT_CIFAR, train=False, download=True, transform=transform)
-
-        if cl_scenario == 'Class':
-            scenario = ClassIncremental(trainset, transformations=[transform], increment=1)
-            print(f"Number of classes: {scenario.nb_classes}.")
-            print(f"Number of tasks: {scenario.nb_tasks}.")
-        else:
-            scenario = InstanceIncremental(dataset=trainset, transformations=[transform], nb_tasks=10)
-            print(f"Number of tasks: {scenario.nb_tasks}")
-
-        model = load_model(dataset=benchmark)
-
-        for task_id, train_taskset in enumerate(scenario):
-            train_taskset, val_taskset = split_train_val(train_taskset, val_split=0)
-
-            trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
-                                                      shuffle=True, drop_last=True)
-
-            testloader = torch.utils.data.DataLoader(
-                dataset=testset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
-
-            train(exp_name=exp_name, model=model, trainloader=trainloader, testloader=testloader,
-                  device=DEVICE, opt_params=params)
-
 
 def run_exp(exp_name, params, use_devset=False):
     for benchmark in ['mnist', 'cifar']:
@@ -93,13 +50,87 @@ def run_exp(exp_name, params, use_devset=False):
               device=DEVICE, opt_params=params)
 
 
+def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
+
+    for benchmark in ['mnist', 'cifar']:
+        print(f'Running: {exp_name}/{benchmark}')
+
+        if benchmark == 'mnist':
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.1307,), (0.3081,))
+            ])
+            trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
+            testset = MNIST(data_path = 'data/datasets/mnist', train=False, download=True)
+
+        elif benchmark == 'cifar':
+            transform = transforms.Compose(
+                [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+            )
+            trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
+            testset = CIFAR10(data_path='data/datasets/cifar10', train=False, download=True)
+
+        if cl_scenario == 'Class':
+            scenario = ClassIncremental(trainset, transformations=[transform], increment=1)
+            test_scenario = ClassIncremental(testset, transformations=[transform], increment=1)
+            print(f"Number of classes: {scenario.nb_classes}.")
+            print(f"Number of tasks: {scenario.nb_tasks}.")
+        else:
+            scenario = InstanceIncremental(trainset, transformations=[transform], nb_tasks=10)
+            test_scenario = InstanceIncremental(testset, transformations=[transform], nb_tasks=10)
+            print(f"Number of tasks: {scenario.nb_tasks}")
+
+        model = load_model(dataset=benchmark)
+        logger = Logger(list_subsets=['test'])
+        writer = SummaryWriter(f'runs/{exp_name}/{benchmark}')
+        task_log = {
+            'FWT': [],
+            'BWT': []
+        }
+
+        epoch_log = {
+            'epoch': [],
+            'train_loss': [],
+            'train_acc': [],
+            'test_loss': [],
+            'test_acc': [],
+            'S': []
+        }
+
+        for task_id, train_taskset in enumerate(scenario):
+            train_taskset, val_taskset = split_train_val(train_taskset, val_split=0)
+            test_taskset = test_scenario[:task_id + 1]
+
+            trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
+                                                      shuffle=True, drop_last=True)
+            
+            testloader = torch.utils.data.DataLoader(dataset=test_taskset, batch_size=params['batch_size'],
+                shuffle=False, drop_last=True)
+
+            train(exp_name=f'{exp_name}/{benchmark}', model=model, trainloader=trainloader, testloader=testloader,
+                  device=DEVICE, opt_params=params, writer=writer, epoch_start=params['n_epochs']*task_id, epoch_log=epoch_log)
+
+            # Run test evaluation
+            test_loss, test_acc = test(model=model,testloader=testloader, device=DEVICE, logger=logger)
+            task_log['FWT'].append(logger.forward_transfer)
+            task_log['BWT'].append(logger.backward_transfer)
+            logger.end_task()
+
+        helpers.write_logs(f'{exp_name}/{benchmark}', task_log, log_type='task', params=params)
+        writer.close()
+
+
+
 def train(
         exp_name: str,
         model: nn.Module,
         trainloader: torch.utils.data.DataLoader,
         testloader: torch.utils.data.DataLoader,
         device: torch.device,
-        opt_params
+        opt_params,
+        writer,
+        epoch_start,
+        epoch_log
 ):
     n_epochs = opt_params['n_epochs']
     lr = opt_params['lr']
@@ -109,15 +140,6 @@ def train(
 
     criterion = nn.CrossEntropyLoss(reduction='none')
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=decay)
-    writer = SummaryWriter(f'runs/{exp_name}')
-    log = {
-        'epoch': [],
-        'train_loss': [],
-        'train_acc': [],
-        'test_loss': [],
-        'test_acc': [],
-        'S': []
-    }
 
     print(f"Training {n_epochs} epoch(s) w/ {len(trainloader)} batches each.", flush=True)
     for epoch in range(n_epochs):
@@ -125,23 +147,23 @@ def train(
         test_loss, test_acc = test(model, testloader, device)
 
         # Write training metrics
-        writer.add_scalar(tag='Train loss', scalar_value=train_loss, global_step=epoch)
-        writer.add_scalar(tag='Train accuracy', scalar_value=train_acc, global_step=epoch)
-        writer.add_scalar(tag='S', scalar_value=S_e, global_step=epoch)
+        writer.add_scalar(tag='Train loss', scalar_value=train_loss, global_step=epoch_start+epoch)
+        writer.add_scalar(tag='Train accuracy', scalar_value=train_acc, global_step=epoch_start+epoch)
+        writer.add_scalar(tag='S', scalar_value=S_e, global_step=epoch_start+epoch)
 
         # Write testing metrics
-        writer.add_scalar(tag='Test loss', scalar_value=test_loss, global_step=epoch)
-        writer.add_scalar(tag='Test accuracy', scalar_value=test_acc, global_step=epoch)
-        log['epoch'].append(epoch)
-        log['train_loss'].append(train_loss)
-        log['train_acc'].append(train_acc)
-        log['test_loss'].append(test_loss)
-        log['test_acc'].append(test_acc)
-        log['S'].append(S_e)
+        writer.add_scalar(tag='Test loss', scalar_value=test_loss, global_step=epoch_start+epoch)
+        writer.add_scalar(tag='Test accuracy', scalar_value=test_acc, global_step=epoch_start+epoch)
+        epoch_log['epoch'].append(epoch_start+epoch)
+        epoch_log['train_loss'].append(train_loss)
+        epoch_log['train_acc'].append(train_acc)
+        epoch_log['test_loss'].append(test_loss)
+        epoch_log['test_acc'].append(test_acc)
+        epoch_log['S'].append(S_e)
 
     # export scalar data to JSON for external processing
-    helpers.write_logs(exp_name, log, opt_params)
-    writer.close()
+    helpers.write_logs(exp_name, epoch_log, log_type='epoch', params=opt_params)
+    
 
 
 def train_epoch(
@@ -230,7 +252,8 @@ def train_epoch(
 def test(
         model,
         testloader: torch.utils.data.DataLoader,
-        device: torch.device
+        device: torch.device,
+        logger = None
 ) -> Tuple[float, float]:
     """Validate the network on the entire test set."""
 
@@ -250,5 +273,7 @@ def test(
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+            if logger is not None:
+                logger.add([predicted.detach(), labels.detach(), data[2]], subset='test')
 
     return loss / total, correct / total
