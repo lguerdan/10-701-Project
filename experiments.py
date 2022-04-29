@@ -76,16 +76,16 @@ if __name__ == "__main__":
 
     # Experiment 3 configuration - vary threshold update type under continual learning scenarios
     exp3_params = {
-        'use_devset': True,
+        'use_devset': False,
         'lr': 0.05,
         'dp': True,
         'clipping': 'Linear',
         'num_microbatches': 32,
         'batch_size': 32,
-        'S': 1,
-        'z': 0.2,
+        'S': 5,
+        'z': 0.1,
         'gamma': 0.7,
-        'lr_c': 0.1,
+        'lr_c': 0.01,
         'momentum': 0.5,
         'decay': 0,
         'n_epochs': 6,

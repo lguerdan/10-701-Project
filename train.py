@@ -62,8 +62,8 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
             print(f"Number of classes: {scenario.nb_classes}.")
             print(f"Number of tasks: {scenario.nb_tasks}.")
         else:
-            scenario = InstanceIncremental(dataset=trainset, transformations=[transform], nb_tasks=10)
-            test_scenario = InstanceIncremental(testset, transformations=[transform], increment=1)
+            scenario = InstanceIncremental(trainset, transformations=[transform], nb_tasks=10)
+            test_scenario = InstanceIncremental(testset, transformations=[transform], nb_tasks=10)
             print(f"Number of tasks: {scenario.nb_tasks}")
 
         model = load_model(dataset=benchmark)
