@@ -14,7 +14,7 @@ from torch.nn.utils import clip_grad_norm_
 from torch import Tensor
 
 import helpers
-from models import cifar, mnist
+from models import cifar, mnist, svhn, fashion_mnist
 from data import utils
 
 from continuum import ClassIncremental
@@ -22,22 +22,32 @@ from continuum import InstanceIncremental
 from continuum.tasks import split_train_val
 from continuum.datasets import MNIST
 from continuum.datasets import CIFAR10
+from continuum.datasets import SVHN
+from continuum.datasets import FashionMNIST
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 DATA_ROOT_CIFAR = "data/datasets/cifar-10"
 DATA_ROOT_MNIST = "data/datasets/mnist"
+DATA_ROOT_SVHN = "data/datasets/svhn"
+DATA_ROOT_FashionMNIST = "data/datasets/fashion_mnist"
+
 
 def load_model(dataset: str):
     if dataset == 'cifar':
         return cifar.Net().to(DEVICE)
     elif dataset == 'mnist':
         return mnist.Net().to(DEVICE)
+    elif dataset == 'svhn':
+        return svhn.Net().to(DEVICE)
+    elif dataset == 'fashion_mnist':
+        return fashion_mnist.Net().to(DEVICE)
 
 
 def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
 
-    for benchmark in ['mnist', 'cifar']:
+    #for benchmark in ['mnist', 'cifar', 'svhn', 'fashion_mnist']:
+    for benchmark in ['fashion_mnist']:
         print(f'Running: {exp_name}/{benchmark}')
 
         if benchmark == 'mnist':
@@ -48,19 +58,36 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
             trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
             testset = torchvision.datasets.MNIST(DATA_ROOT_MNIST, train=False, download=True, transform=transform)
 
-        else:
+        elif benchmark == 'cifar':
             transform = transforms.Compose(
                 [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
             )
             trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
             testset = torchvision.datasets.CIFAR10(DATA_ROOT_CIFAR, train=False, download=True, transform=transform)
 
+        elif benchmark == 'svhn':
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.5,), (0.5,))
+            ])
+            trainset = SVHN(data_path='data/datasets/svhn', train=True, download=True)
+            testset = torchvision.datasets.SVHN(DATA_ROOT_SVHN, split='train', download=True, transform=transform)
+
+        else: #benchmark == 'fashion_mnist':
+            transform = transforms.Compose([
+                transforms.Resize(32), 
+                transforms.ToTensor()
+            ])
+            trainset = FashionMNIST(data_path='data/datasets/fashion_mnist', train=True, download=True)
+            testset = torchvision.datasets.FashionMNIST(DATA_ROOT_FashionMNIST, train=False, download=True, transform=transform)
+
         if cl_scenario == 'Class':
             scenario = ClassIncremental(trainset, transformations=[transform], increment=1)
             print(f"Number of classes: {scenario.nb_classes}.")
             print(f"Number of tasks: {scenario.nb_tasks}.")
         else:
-            scenario = InstanceIncremental(dataset=trainset, transformations=[transform], nb_tasks=10)
+            scenario = InstanceIncremental(trainset, transformations=[transform], nb_tasks=10)
+            # scenario = InstanceIncremental(dataset=trainset, transformations=[transform], nb_tasks=10)
             print(f"Number of tasks: {scenario.nb_tasks}")
 
         model = load_model(dataset=benchmark)

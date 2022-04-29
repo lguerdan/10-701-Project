@@ -15,6 +15,7 @@ def load_run(run_name):
     mnist, cifar  = pd.read_csv(f'runs/{run_name}/mnist.csv'), pd.read_csv(f'runs/{run_name}/cifar.csv')
     mnist['benchmark'] = 'MNIST'
     cifar['benchmark'] = 'CIFAR'
+
     log_data = pd.concat([mnist, cifar])
 
     with open(f'runs/{run_name}/mnist_params.json') as json_file:
@@ -36,7 +37,12 @@ def load_exp(exp_name):
         mnist, cifar  = pd.read_csv(f'{exp}/mnist.csv'), pd.read_csv(f'{exp}/cifar.csv')
         mnist['benchmark'] = 'MNIST'
         cifar['benchmark'] = 'CIFAR'
-        log_data = pd.concat([mnist, cifar])
+
+        svhn, fashion_mnist = pd.read_csv(f'{exp}/svhn.csv'), pd.read_csv(f'{exp}/fashion_mnist.csv')
+        svhn['benchmark'] = 'SVHN'
+        fashion_mnist['benchmark'] = 'FashionMNIST'
+
+        log_data = pd.concat([mnist, cifar, svhn, fashion_mnist])
         log_data[exp_var] = exp_val
         
         exp_dfs.append(log_data)
