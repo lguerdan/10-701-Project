@@ -83,9 +83,18 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
         model = load_model(dataset=benchmark)
         logger = Logger(list_subsets=['test'])
         writer = SummaryWriter(f'runs/{exp_name}/{benchmark}')
-        log = {
+        task_log = {
             'FWT': [],
             'BWT': []
+        }
+
+        epoch_log = {
+            'epoch': [],
+            'train_loss': [],
+            'train_acc': [],
+            'test_loss': [],
+            'test_acc': [],
+            'S': []
         }
 
         for task_id, train_taskset in enumerate(scenario):
@@ -98,16 +107,17 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
             testloader = torch.utils.data.DataLoader(dataset=test_taskset, batch_size=params['batch_size'],
                 shuffle=False, drop_last=True)
 
-            train(exp_name=exp_name, model=model, trainloader=trainloader, testloader=testloader,
-                  device=DEVICE, opt_params=params, writer=writer, epoch_start=params['n_epochs']*task_id)
+            train(exp_name=f'{exp_name}/{benchmark}', model=model, trainloader=trainloader, testloader=testloader,
+                  device=DEVICE, opt_params=params, writer=writer, epoch_start=params['n_epochs']*task_id, epoch_log=epoch_log)
 
             # Run test evaluation
             test_loss, test_acc = test(model=model,testloader=testloader, device=DEVICE, logger=logger)
-            log['FWT'].append(logger.forward_transfer)
-            log['BWT'].append(logger.backward_transfer)
+            task_log['FWT'].append(logger.forward_transfer)
+            task_log['BWT'].append(logger.backward_transfer)
             logger.end_task()
 
-        helpers.write_logs(f'{exp_name}/{benchmark}', log, log_type='task', params=params)
+        helpers.write_logs(f'{exp_name}/{benchmark}', task_log, log_type='task', params=params)
+        writer.close()
 
 
 
@@ -119,7 +129,8 @@ def train(
         device: torch.device,
         opt_params,
         writer,
-        epoch_start
+        epoch_start,
+        epoch_log
 ):
     n_epochs = opt_params['n_epochs']
     lr = opt_params['lr']
@@ -129,22 +140,11 @@ def train(
 
     criterion = nn.CrossEntropyLoss(reduction='none')
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=decay)
-    
-    log = {
-        'epoch': [],
-        'train_loss': [],
-        'train_acc': [],
-        'test_loss': [],
-        'test_acc': [],
-        'S': []
-    }
 
     print(f"Training {n_epochs} epoch(s) w/ {len(trainloader)} batches each.", flush=True)
     for epoch in range(n_epochs):
         train_loss, train_acc, S_e = train_epoch(model, trainloader, device, optimizer, criterion, S_e, opt_params)
         test_loss, test_acc = test(model, testloader, device)
-        # test_loss=1
-        # test_acc=1
 
         # Write training metrics
         writer.add_scalar(tag='Train loss', scalar_value=train_loss, global_step=epoch_start+epoch)
@@ -154,16 +154,16 @@ def train(
         # Write testing metrics
         writer.add_scalar(tag='Test loss', scalar_value=test_loss, global_step=epoch_start+epoch)
         writer.add_scalar(tag='Test accuracy', scalar_value=test_acc, global_step=epoch_start+epoch)
-        log['epoch'].append(epoch_start+epoch)
-        log['train_loss'].append(train_loss)
-        log['train_acc'].append(train_acc)
-        log['test_loss'].append(test_loss)
-        log['test_acc'].append(test_acc)
-        log['S'].append(S_e)
+        epoch_log['epoch'].append(epoch_start+epoch)
+        epoch_log['train_loss'].append(train_loss)
+        epoch_log['train_acc'].append(train_acc)
+        epoch_log['test_loss'].append(test_loss)
+        epoch_log['test_acc'].append(test_acc)
+        epoch_log['S'].append(S_e)
 
     # export scalar data to JSON for external processing
-    helpers.write_logs(exp_name, log, log_type='epoch', params=opt_params)
-    writer.close()
+    helpers.write_logs(exp_name, epoch_log, log_type='epoch', params=opt_params)
+    
 
 
 def train_epoch(
