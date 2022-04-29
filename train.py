@@ -80,15 +80,22 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
 
             trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
                                                       shuffle=True, drop_last=True)
-            test_taskset = test_scenario[:task_id + 1]
-
+            
             testloader = torch.utils.data.DataLoader(
                 dataset=testset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
 
-            c_testloader = torch.utils.data.DataLoader(test_taskset, batch_size=params['batch_size'])
+            test_taskset = test_scenario[:task_id + 1]
+
+            print('Train taskset type: ', type(train_taskset))
+            print('Test taskset type: ', type(test_taskset))
+
+            c_testloader = torch.utils.data.DataLoader(test_taskset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
 
             train(exp_name=exp_name, model=model, trainloader=trainloader, testloader=testloader,
                   device=DEVICE, opt_params=params)
+
+            print('Test task loader', type(testloader))
+            print('Test task loader', type(c_testloader))
 
             test_loss, test_acc = test(model=model,testloader=c_testloader, device=DEVICE, logger=logger)
             log['FWT'].append(logger.forward_transfer)
@@ -272,6 +279,6 @@ def test(
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
             if logger is not None:
-                logger.add([predicted,labels,idx], subset='test')
+                logger.add([predicted.detach(), labels.detach(), data[2]], subset='test')
 
     return loss / total, correct / total
