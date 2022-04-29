@@ -35,6 +35,20 @@ def load_model(dataset: str):
     elif dataset == 'mnist':
         return mnist.Net().to(DEVICE)
 
+def run_exp(exp_name, params, use_devset=False):
+    for benchmark in ['mnist', 'cifar']:
+        print(f'Running: {exp_name}/{benchmark}')
+        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset)
+        trainloader = torch.utils.data.DataLoader(
+            dataset=trainset, batch_size=params['batch_size'], shuffle=True, drop_last=True)
+
+        testloader = torch.utils.data.DataLoader(
+            dataset=testset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
+
+        model = load_model(dataset=benchmark)
+        train(exp_name=f'{exp_name}/{benchmark}', model=model, trainloader=trainloader, testloader=testloader,
+              device=DEVICE, opt_params=params)
+
 
 def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
 
@@ -68,6 +82,7 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
 
         model = load_model(dataset=benchmark)
         logger = Logger(list_subsets=['test'])
+        writer = SummaryWriter(f'runs/{exp_name}/{benchmark}')
         log = {
             'FWT': [],
             'BWT': []
@@ -84,7 +99,7 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
                 shuffle=False, drop_last=True)
 
             train(exp_name=exp_name, model=model, trainloader=trainloader, testloader=testloader,
-                  device=DEVICE, opt_params=params)
+                  device=DEVICE, opt_params=params, writer=writer, epoch_start=params['n_epochs']*task_id)
 
             # Run test evaluation
             test_loss, test_acc = test(model=model,testloader=testloader, device=DEVICE, logger=logger)
@@ -95,20 +110,6 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
         helpers.write_logs(exp_name, log, log_type='task', params=params)
 
 
-def run_exp(exp_name, params, use_devset=False):
-    for benchmark in ['mnist', 'cifar']:
-        print(f'Running: {exp_name}/{benchmark}')
-        trainset, testset, transform = utils.load_data(dataset=benchmark, devset=use_devset)
-        trainloader = torch.utils.data.DataLoader(
-            dataset=trainset, batch_size=params['batch_size'], shuffle=True, drop_last=True)
-
-        testloader = torch.utils.data.DataLoader(
-            dataset=testset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
-
-        model = load_model(dataset=benchmark)
-        train(exp_name=f'{exp_name}/{benchmark}', model=model, trainloader=trainloader, testloader=testloader,
-              device=DEVICE, opt_params=params)
-
 
 def train(
         exp_name: str,
@@ -116,7 +117,9 @@ def train(
         trainloader: torch.utils.data.DataLoader,
         testloader: torch.utils.data.DataLoader,
         device: torch.device,
-        opt_params
+        opt_params,
+        writer,
+        epoch_start
 ):
     n_epochs = opt_params['n_epochs']
     lr = opt_params['lr']
@@ -126,7 +129,7 @@ def train(
 
     criterion = nn.CrossEntropyLoss(reduction='none')
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=decay)
-    writer = SummaryWriter(f'runs/{exp_name}')
+    
     log = {
         'epoch': [],
         'train_loss': [],
@@ -144,14 +147,14 @@ def train(
         # test_acc=1
 
         # Write training metrics
-        writer.add_scalar(tag='Train loss', scalar_value=train_loss, global_step=epoch)
-        writer.add_scalar(tag='Train accuracy', scalar_value=train_acc, global_step=epoch)
-        writer.add_scalar(tag='S', scalar_value=S_e, global_step=epoch)
+        writer.add_scalar(tag='Train loss', scalar_value=train_loss, global_step=epoch_start+epoch)
+        writer.add_scalar(tag='Train accuracy', scalar_value=train_acc, global_step=epoch_start+epoch)
+        writer.add_scalar(tag='S', scalar_value=S_e, global_step=epoch_start+epoch)
 
         # Write testing metrics
-        writer.add_scalar(tag='Test loss', scalar_value=test_loss, global_step=epoch)
-        writer.add_scalar(tag='Test accuracy', scalar_value=test_acc, global_step=epoch)
-        log['epoch'].append(epoch)
+        writer.add_scalar(tag='Test loss', scalar_value=test_loss, global_step=epoch_start+epoch)
+        writer.add_scalar(tag='Test accuracy', scalar_value=test_acc, global_step=epoch_start+epoch)
+        log['epoch'].append(epoch_start+epoch)
         log['train_loss'].append(train_loss)
         log['train_acc'].append(train_acc)
         log['test_loss'].append(test_loss)
