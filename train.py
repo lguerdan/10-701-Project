@@ -52,7 +52,7 @@ def run_exp(exp_name, params, use_devset=False):
 
 def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
 
-    for benchmark in ['cifar']:
+    for benchmark in ['mnist', 'cifar']:
         print(f'Running: {exp_name}/{benchmark}')
 
         if benchmark == 'mnist':
