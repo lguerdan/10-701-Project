@@ -38,7 +38,7 @@ def load_model(dataset: str):
 
 def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
 
-    for benchmark in ['mnist', 'cifar']:
+    for benchmark in ['cifar']:
         print(f'Running: {exp_name}/{benchmark}')
 
         if benchmark == 'mnist':
@@ -48,15 +48,13 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
             ])
             trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
             testset = MNIST(data_path = 'data/datasets/mnist', train=False, download=True)
-            # testset = torchvision.datasets.MNIST(DATA_ROOT_MNIST, train=False, download=True, transform=transform)
 
-        else:
+        elif benchmark == 'cifar':
             transform = transforms.Compose(
                 [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
             )
             trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
-            testset = MNIST(data_path='data/datasets/cifar10', train=False, download=True)
-            # testset = torchvision.datasets.CIFAR10(DATA_ROOT_CIFAR, train=False, download=True, transform=transform)
+            testset = CIFAR10(data_path='data/datasets/cifar10', train=False, download=True)
 
         if cl_scenario == 'Class':
             scenario = ClassIncremental(trainset, transformations=[transform], increment=1)
@@ -142,6 +140,8 @@ def train(
     for epoch in range(n_epochs):
         train_loss, train_acc, S_e = train_epoch(model, trainloader, device, optimizer, criterion, S_e, opt_params)
         test_loss, test_acc = test(model, testloader, device)
+        # test_loss=1
+        # test_acc=1
 
         # Write training metrics
         writer.add_scalar(tag='Train loss', scalar_value=train_loss, global_step=epoch)
