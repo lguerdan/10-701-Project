@@ -106,6 +106,7 @@ def train(
     momentum = opt_params['momentum']
     decay = opt_params['decay']
     S_e = opt_params['S']
+    gamma = opt_params['gamma']
 
     criterion = nn.CrossEntropyLoss(reduction='none')
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=decay)
@@ -116,12 +117,13 @@ def train(
         'train_acc': [],
         'test_loss': [],
         'test_acc': [],
-        'S': []
+        'S': [],
+        'gamma': [],
     }
 
     print(f"Training {n_epochs} epoch(s) w/ {len(trainloader)} batches each.", flush=True)
     for epoch in range(n_epochs):
-        train_loss, train_acc, S_e = train_epoch(model, trainloader, device, optimizer, criterion, S_e, opt_params)
+        train_loss, train_acc, S_e, gamma = train_epoch(model, trainloader, device, optimizer, criterion, S_e, gamma, opt_params)
         test_loss, test_acc = test(model, testloader, device)
 
         # Write training metrics
@@ -138,6 +140,7 @@ def train(
         log['test_loss'].append(test_loss)
         log['test_acc'].append(test_acc)
         log['S'].append(S_e)
+        log['gamma'].append(gamma)
 
     # export scalar data to JSON for external processing
     helpers.write_logs(exp_name, log, opt_params)
@@ -151,6 +154,7 @@ def train_epoch(
         optimizer: torch.optim,
         criterion,
         S_e,
+        gamma,
         opt_params,
 ) -> List[Tuple[float, float]]:
     # DP-SGD parameters
@@ -158,7 +162,6 @@ def train_epoch(
     num_microbatches = opt_params['num_microbatches']
     S = S_e
     z = opt_params['z']
-    gamma = opt_params['gamma']  # Target quantile
     lr_c = opt_params['lr_c']
     sigma_b = 1.5  # Test value for sigma used in adaptive clipping
     sigma = z * S
@@ -198,6 +201,7 @@ def train_epoch(
                 saved_var[tensor_name].add_(new_grad)
             model.zero_grad()
 
+        gamma += (b/num_microbatches-gamma)/2
         if adaptive_clipping == 'Linear':
             b += torch.randn(1) * sigma_b
             b_t = b / num_microbatches
@@ -224,7 +228,7 @@ def train_epoch(
         S_e = S_e.item() if adaptive_clipping != 'Fixed' else S_e
         S_e = max(S_e, 0.0)
 
-    return running_loss / total, correct / total, S_e
+    return running_loss / total, correct / total, S_e, gamma
 
 
 def test(
