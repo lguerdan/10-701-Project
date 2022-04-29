@@ -107,7 +107,7 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
             log['BWT'].append(logger.backward_transfer)
             logger.end_task()
 
-        helpers.write_logs(exp_name, log, log_type='task', params=params)
+        helpers.write_logs(f'{exp_name}/{benchmark}', log, log_type='task', params=params)
 
 
 
