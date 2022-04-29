@@ -47,25 +47,25 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
                 transforms.Normalize((0.1307,), (0.3081,))
             ])
             trainset = MNIST(data_path='data/datasets/mnist', train=True, download=True)
-            testcset = MNIST(data_path = 'data/datasets/mnist', train=False, download=False)
-            testset = torchvision.datasets.MNIST(DATA_ROOT_MNIST, train=False, download=True, transform=transform)
+            testset = MNIST(data_path = 'data/datasets/mnist', train=False, download=True)
+            # testset = torchvision.datasets.MNIST(DATA_ROOT_MNIST, train=False, download=True, transform=transform)
 
         else:
             transform = transforms.Compose(
                 [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
             )
             trainset = CIFAR10(data_path='data/datasets/cifar10', train=True, download=True)
-            testcset = MNIST(data_path='data/datasets/cifar10', train=False, download=False)
-            testset = torchvision.datasets.CIFAR10(DATA_ROOT_CIFAR, train=False, download=True, transform=transform)
+            testset = MNIST(data_path='data/datasets/cifar10', train=False, download=True)
+            # testset = torchvision.datasets.CIFAR10(DATA_ROOT_CIFAR, train=False, download=True, transform=transform)
 
         if cl_scenario == 'Class':
             scenario = ClassIncremental(trainset, transformations=[transform], increment=1)
-            test_scenario = ClassIncremental(testcset, transformations=[transform], increment=1)
+            test_scenario = ClassIncremental(testset, transformations=[transform], increment=1)
             print(f"Number of classes: {scenario.nb_classes}.")
             print(f"Number of tasks: {scenario.nb_tasks}.")
         else:
             scenario = InstanceIncremental(dataset=trainset, transformations=[transform], nb_tasks=10)
-            test_scenario = InstanceIncremental(testcset, transformations=[transform], increment=1)
+            test_scenario = InstanceIncremental(testset, transformations=[transform], increment=1)
             print(f"Number of tasks: {scenario.nb_tasks}")
 
         model = load_model(dataset=benchmark)
@@ -77,32 +77,24 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
 
         for task_id, train_taskset in enumerate(scenario):
             train_taskset, val_taskset = split_train_val(train_taskset, val_split=0)
+            test_taskset = test_scenario[:task_id + 1]
 
             trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
                                                       shuffle=True, drop_last=True)
             
-            testloader = torch.utils.data.DataLoader(
-                dataset=testset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
-
-            test_taskset = test_scenario[:task_id + 1]
-
-            print('Train taskset type: ', type(train_taskset))
-            print('Test taskset type: ', type(test_taskset))
-
-            c_testloader = torch.utils.data.DataLoader(test_taskset, batch_size=params['batch_size'], shuffle=False, drop_last=True)
+            testloader = torch.utils.data.DataLoader(dataset=test_taskset, batch_size=params['batch_size'],
+                shuffle=False, drop_last=True)
 
             train(exp_name=exp_name, model=model, trainloader=trainloader, testloader=testloader,
                   device=DEVICE, opt_params=params)
 
-            print('Test task loader', type(testloader))
-            print('Test task loader', type(c_testloader))
-
-            test_loss, test_acc = test(model=model,testloader=c_testloader, device=DEVICE, logger=logger)
+            # Run test evaluation
+            test_loss, test_acc = test(model=model,testloader=testloader, device=DEVICE, logger=logger)
             log['FWT'].append(logger.forward_transfer)
             log['BWT'].append(logger.backward_transfer)
-
             logger.end_task()
-        helpers.write_logs(exp_name, log, log_type='task', params=opt_params)
+
+        helpers.write_logs(exp_name, log, log_type='task', params=params)
 
 
 def run_exp(exp_name, params, use_devset=False):
