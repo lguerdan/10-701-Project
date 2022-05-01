@@ -284,10 +284,6 @@ def test(
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-            print('==========')
-            print('correct: ', correct)
-            print('predicted: ', predicted)
-            print('==========')
             if logger is not None:
                 logger.add([predicted.detach(), labels.detach(), data[2]], subset='test')
 

@@ -76,7 +76,7 @@ if __name__ == "__main__":
 
     # Experiment 3 configuration - vary threshold update type under continual learning scenarios
     exp3_params = {
-        'use_devset': True,
+        'use_devset': False,
         'lr': 0.05,
         'dp': True,
         'clipping': 'Linear',
@@ -97,4 +97,4 @@ if __name__ == "__main__":
     # run_central_baseline_fixed_cuttoff(exp1_params, cutoffs)
     # run_central_baseline_adaptive_cuttoff(exp2_params, clipping_methods)
     run_CL_experiment(exp3_params, clipping_methods, cl_scenario='Class')
-    # run_CL_experiment(exp3_params, clipping_methods, cl_scenario='Instance')
+    run_CL_experiment(exp3_params, clipping_methods, cl_scenario='Instance')
