@@ -13,7 +13,7 @@ def write_logs(exp_name, log, log_type, params=None):
 
 def load_run(run_name):
     
-    mnist, cifar  = pd.read_csv(f'runs/{run_name}/mnist.csv'), pd.read_csv(f'runs/{run_name}/cifar.csv')
+    mnist, cifar = pd.read_csv(f'runs/{run_name}/mnist.csv'), pd.read_csv(f'runs/{run_name}/cifar.csv')
     mnist['benchmark'] = 'MNIST'
     cifar['benchmark'] = 'CIFAR'
     log_data = pd.concat([mnist, cifar])
@@ -23,7 +23,7 @@ def load_run(run_name):
 
     return log_data, params
 
-def load_exp(exp_name):
+def load_exp(exp_name, extension=None):
     '''
         exp_name: stem of experiment name (e.g., baseline_experiment*)
         returns: dataframe over all results, param configuration
@@ -33,8 +33,15 @@ def load_exp(exp_name):
     for exp in glob.glob(f'runs/{exp_name}*'):
         exp_var = exp.split('__')[1].split('_')[0]
         exp_val = exp.split('__')[1].split('_')[1].split('/')[0]
+
+        if not extension: 
+            mnist_file = f'{exp}/mnist.csv'
+            cifar_file = f'{exp}/cifar.csv'
+        else: 
+            mnist_file = f'{exp}/mnist_{extension}.csv'
+            cifar_file = f'{exp}/cifar_{extension}.csv'
         
-        mnist, cifar  = pd.read_csv(f'{exp}/mnist.csv'), pd.read_csv(f'{exp}/cifar.csv')
+        mnist, cifar  = pd.read_csv(mnist_file), pd.read_csv(cifar_file)
         mnist['benchmark'] = 'MNIST'
         cifar['benchmark'] = 'CIFAR'
         log_data = pd.concat([mnist, cifar])

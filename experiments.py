@@ -88,7 +88,7 @@ if __name__ == "__main__":
         'lr_c': 0.01,
         'momentum': 0.5,
         'decay': 0,
-        'n_epochs': 6,
+        'n_epochs': 12,
     }
 
     cutoffs = [.5, 1, 1.5, 2]
