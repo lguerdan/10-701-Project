@@ -13,9 +13,9 @@ def write_logs(exp_name, log, log_type, params=None):
 
 def load_run(run_name):
     
-    mnist, pd.read_csv(f'runs/{run_name}/mnist.csv')
+    mnist, cifar = pd.read_csv(f'runs/{run_name}/mnist.csv'), pd.read_csv(f'runs/{run_name}/cifar.csv')
     mnist['benchmark'] = 'MNIST'
-    # cifar['benchmark'] = 'CIFAR'
+    cifar['benchmark'] = 'CIFAR'
     log_data = pd.concat([mnist, cifar])
 
     with open(f'runs/{run_name}/mnist_params.json') as json_file:
@@ -41,9 +41,10 @@ def load_exp(exp_name, extension=None):
             mnist_file = f'{exp}/mnist_{extension}.csv'
             cifar_file = f'{exp}/cifar_{extension}.csv'
         
-        mnist  = pd.read_csv(mnist_file)
+        mnist, cifar  = pd.read_csv(mnist_file), pd.read_csv(cifar_file)
         mnist['benchmark'] = 'MNIST'
-        log_data = pd.concat([mnist])
+        cifar['benchmark'] = 'CIFAR'
+        log_data = pd.concat([mnist, cifar])
         log_data[exp_var] = exp_val
         
         exp_dfs.append(log_data)
