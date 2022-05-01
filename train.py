@@ -52,7 +52,7 @@ def run_exp(exp_name, params, use_devset=False):
 
 def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
 
-    for benchmark in ['mnist']:
+    for benchmark in ['cifar', 'mnist']:
         print(f'Running: {exp_name}/{benchmark}')
 
         if benchmark == 'mnist':
@@ -71,13 +71,13 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
             testset = CIFAR10(data_path='data/datasets/cifar10', train=False, download=True)
 
         if cl_scenario == 'Class':
-            scenario = ClassIncremental(trainset, transformations=[transform], increment=1)
-            test_scenario = ClassIncremental(testset, transformations=[transform], increment=1)
+            scenario = ClassIncremental(trainset, transformations=[transform], increment=2)
+            test_scenario = ClassIncremental(testset, transformations=[transform], increment=2)
             print(f"Number of classes: {scenario.nb_classes}.")
             print(f"Number of tasks: {scenario.nb_tasks}.")
         else:
-            scenario = InstanceIncremental(trainset, transformations=[transform], nb_tasks=10)
-            test_scenario = InstanceIncremental(testset, transformations=[transform], nb_tasks=10)
+            scenario = InstanceIncremental(trainset, transformations=[transform], nb_tasks=5)
+            test_scenario = InstanceIncremental(testset, transformations=[transform], nb_tasks=5)
             print(f"Number of tasks: {scenario.nb_tasks}")
 
         model = load_model(dataset=benchmark)
@@ -86,6 +86,7 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
         task_log = {
             'FWT': [],
             'BWT': [],
+            'ACC': [],
             'task': []
         }
 
@@ -101,21 +102,25 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
 
         for task_id, train_taskset in enumerate(scenario):
             train_taskset, val_taskset = split_train_val(train_taskset, val_split=0)
-            test_taskset = test_scenario[:task_id + 1]
+            test_taskset = test_scenario[task_id]
 
             trainloader = torch.utils.data.DataLoader(dataset=train_taskset, batch_size=params['batch_size'],
                                                       shuffle=True, drop_last=True)
             
-            testloader = torch.utils.data.DataLoader(dataset=test_taskset, batch_size=params['batch_size'],
+            testloader = torch.utils.data.DataLoader(dataset=test_scenario[:task_id+1], batch_size=params['batch_size'],
                 shuffle=False, drop_last=True)
 
-            train(exp_name=f'{exp_name}/{benchmark}', model=model, trainloader=trainloader, testloader=testloader,
+            currtask_testloader = torch.utils.data.DataLoader(dataset=test_scenario[task_id], batch_size=params['batch_size'],
+                shuffle=False, drop_last=True)
+
+            train(exp_name=f'{exp_name}/{benchmark}', model=model, trainloader=trainloader, testloader=currtask_testloader,
                   device=DEVICE, opt_params=params, writer=writer, task_id=task_id, epoch_log=epoch_log)
 
             # Run test evaluation
             test_loss, test_acc = test(model=model,testloader=testloader, device=DEVICE, logger=logger)
             task_log['FWT'].append(logger.forward_transfer)
             task_log['BWT'].append(logger.backward_transfer)
+            task_log['ACC'].append(logger.accuracy)
             task_log['task'].append(task_id)
             logger.end_task()
 
@@ -279,6 +284,10 @@ def test(
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+            print('==========')
+            print('correct: ', correct)
+            print('predicted: ', predicted)
+            print('==========')
             if logger is not None:
                 logger.add([predicted.detach(), labels.detach(), data[2]], subset='test')
 
