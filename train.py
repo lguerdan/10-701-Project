@@ -85,7 +85,8 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
         writer = SummaryWriter(f'runs/{exp_name}/{benchmark}')
         task_log = {
             'FWT': [],
-            'BWT': []
+            'BWT': [],
+            'task': []
         }
 
         epoch_log = {
@@ -94,6 +95,7 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
             'train_acc': [],
             'test_loss': [],
             'test_acc': [],
+            'task': [],
             'S': []
         }
 
@@ -108,15 +110,17 @@ def run_continual_exp(exp_name, params, use_devset=False, cl_scenario='Class'):
                 shuffle=False, drop_last=True)
 
             train(exp_name=f'{exp_name}/{benchmark}', model=model, trainloader=trainloader, testloader=testloader,
-                  device=DEVICE, opt_params=params, writer=writer, epoch_start=params['n_epochs']*task_id, epoch_log=epoch_log)
+                  device=DEVICE, opt_params=params, writer=writer, task_id=task_id, epoch_log=epoch_log)
 
             # Run test evaluation
             test_loss, test_acc = test(model=model,testloader=testloader, device=DEVICE, logger=logger)
             task_log['FWT'].append(logger.forward_transfer)
             task_log['BWT'].append(logger.backward_transfer)
+            task_log['task'].append(task_id)
             logger.end_task()
 
         helpers.write_logs(f'{exp_name}/{benchmark}', task_log, log_type='task', params=params)
+        helpers.write_logs(f'{exp_name}/{benchmark}', epoch_log, log_type='epoch', params=params)
         writer.close()
 
 
@@ -129,7 +133,7 @@ def train(
         device: torch.device,
         opt_params,
         writer,
-        epoch_start,
+        task_id,
         epoch_log
 ):
     n_epochs = opt_params['n_epochs']
@@ -137,6 +141,8 @@ def train(
     momentum = opt_params['momentum']
     decay = opt_params['decay']
     S_e = opt_params['S']
+
+    epoch_start = n_epochs*task_id
 
     criterion = nn.CrossEntropyLoss(reduction='none')
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=decay)
@@ -159,11 +165,11 @@ def train(
         epoch_log['train_acc'].append(train_acc)
         epoch_log['test_loss'].append(test_loss)
         epoch_log['test_acc'].append(test_acc)
+        epoch_log['task'].append(task_id)
         epoch_log['S'].append(S_e)
 
     # export scalar data to JSON for external processing
-    helpers.write_logs(exp_name, epoch_log, log_type='epoch', params=opt_params)
-    
+    # helpers.write_logs(exp_name, epoch_log, log_type='epoch', params=opt_params)
 
 
 def train_epoch(
